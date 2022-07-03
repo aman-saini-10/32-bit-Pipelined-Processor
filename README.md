@@ -11,16 +11,16 @@ Processor Supports:
 
 The Five Stages of Pipeline are- 
 <br /> 1.) INSTRUCTION FETCH        
-<br />(Instruction is Fetched from the Memory)
+<br /> (Instruction is Fetched from the Memory)
 <br />
 <br /> 2.) OPERAND FETCH            
-<br />(Instruction is Decoded, and control Signals are generated)
+<br /> (Instruction is Decoded, and control Signals are generated)
 <br />
 <br /> 3.) EXECUTION STAGE          
-<br />(This unit performs arithmetic operations required for successful execution of instruction, also computes Branch Target for branch instrucitons)
+<br /> (This unit performs arithmetic operations required for successful execution of instruction, also computes Branch Target for branch instrucitons)
 <br />
 <br /> 4.) MEMORY ACCESS            
-<br />(Memory is accessed for load and store instructions)
+<br /> (Memory is accessed for load and store instructions)
 <br />
 <br /> 5.) REGISTER WRITEBACK UNIT  
-<br />(Result is written to the destination register)
+<br /> (Result is written to the destination register)

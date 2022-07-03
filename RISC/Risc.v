@@ -1,0 +1,390 @@
+/* ===============================================
+
+AUTHOR - AMAN SAINI
+INDIAN INSTITUTE OF TECHNOLOGY ROPAR
+
+MODEL OF A SIMPLE RISC PROCESSOR
+
+FEATURES - 
+1.) 5 STAGE PIPELINE
+2.) IN ORDER EXECUTION
+3.) 128 KB RAM (2 read ports, 1 write port), SUPPORTS STACK
+4.) STATE UPDATE ON (NEGEDGE OF CLK)
+5.) NEXT STATE COMPUTATION ON (POSEDGE OF THE CLK)
+
+   ===============================================
+*/
+
+module Processor(input clk, input reset);
+
+// 14 general purpose registers
+// r14 = stack pointer // also called sp
+// r15 = return address, will be referred as ra
+
+    reg[31:0] r[0:16], pc;                // REGISTER FILE AND THE PROGRAM COUNTER
+    reg flag_E, flag_GT, write;           // FLAGS REGISTER (UPDATED BY THE COMPARE INSTRUCTION), WRITE REGISTER(INPUT TO THE RAM)
+    reg[31:0] addr, addr2, addr3, data;   // ADDRESS1, ADDRESS2, DATA INPUTS TO THE RAM
+    wire[31:0] buffer, buffer2;           // OUTPUT OF THE RAM (BUFFER REGISTER)
+    reg[31:0] branchtarget;               // BRANCH TARGET (IN CASE OF BRANCH INTRUCTION)
+    wire isbranchtaken;                   // IS-BRANCH-TAKEN => ASSIGNS BRANCHTARGET TO THE PC IN CASE BRANCH IS TAKEN
+
+    Ram R1(addr, addr2, addr3, write, data, buffer, buffer2); // RANDOM ACCESS MEMORY (128 KB WORD ALLIGNED - WORD ADDRESSABLE);
+
+    reg isWb, isBeq, isBgt, isCall, isImm, isLd, isRet, isSt, isUbranch; // CONTROL SIGNALS
+
+    assign isbranchtaken = isBeq&flag_E | isBgt&flag_GT | isUbranch;    
+    
+    reg [63:0]  IF_OF; // REGISTER BETWEEN THE INSTRUCTION AND THE OPERAND FETCH STAGE
+    reg [200:0] OF_EX; // REGISTER BETWEEN OPERAND FETCH AND EXECUTE STAGE
+    reg [136:0] EX_MA; // REGISTER BETWEEN THE EXECUTE AND THE MEMORY ACCCESS STAGE
+    reg [136:0] MA_RW; // REGISTER BETWEEN THE MEM ACCESS AND THE REGISTER WRITEBACK STAGE        
+
+    // INTRUCTION MANUAL===================================================================================
+    parameter // LIST OF ALL THE INTRUCTIONS SUPPORTED BY THE PROCESSOR
+    add  =  5'b00000,  // addition
+    sub  =  5'b00001,  // subtraction
+    mul  =  5'b00010,  // multiplication
+    div  =  5'b00011,  // division
+    mod  =  5'b00100,  // modulus
+    cmp  =  5'b00101,  // compare (set the flag register)
+    and_ =  5'b00110,  // bitwise and
+    or_  =  5'b00111,  // bitwise or
+    not_ =  5'b01000,  // bitwise not
+    mov  =  5'b01001,  // move instruction
+    lsl  =  5'b01010,  // logical shift left
+    lsr  =  5'b01011,  // logical shift right
+    asr  =  5'b01100,  // arithmetic shift right
+    nop  =  5'b01101,  // no operation
+    ld   =  5'b01110,  // load
+    st   =  5'b01111,  // store
+    beq  =  5'b10000,  // branch if EQ
+    bgt  =  5'b10001,  // branch is GT
+    b    =  5'b10010,  // Unconditional branch
+    call =  5'b10011,  // Function Call
+    ret  =  5'b10100;  // Return (load return address to program counter)
+
+    // <INSTRUCTION MANUAL>================================================================================
+
+    always @(posedge clk, posedge reset) begin
+        if(reset) begin
+            // Setting all the registers to 0 at the beginning of the program
+            // This is done to ensure that no register remains in X state once the execution has begun
+            flag_E <= 0;
+            flag_GT <= 0;
+            // Set all the register to 0
+            r[0]  <= 0;  r[1]  <= 0;  r[2]  <= 0;  r[3]  <= 0;
+            r[4]  <= 0;  r[5]  <= 0;  r[6]  <= 0;  r[7]  <= 0;
+            r[8]  <= 0;  r[9]  <= 0;  r[10] <= 0;  r[11] <= 0;
+            r[12] <= 0;  r[13] <= 0;  r[14] <= 0;  r[15] <= 0;
+           
+            isWb      <= 0; isBeq  <= 0;  isBgt  <= 0; isCall <= 0; 
+            isImm     <= 0; isLd   <= 0;  isRet  <= 0; isSt   <= 0; 
+            isUbranch <= 0; pc     <= 0; // SET ALL THE CONTROL SIGNALS TO 0 STATE
+        end
+    end
+
+    //INSTRUCTION FETCH STAGE
+    always @(posedge clk) begin
+        if(!reset) begin
+            addr <= pc;
+        end
+    end
+
+    always @(negedge clk) begin
+        if(!reset) begin
+        IF_OF[63:32] = addr;
+        IF_OF[31:0] = buffer;
+        pc <= (isbranchtaken == 0) ? pc + 1: branchtarget;
+        end
+    end
+    // <INSTRUCTION FETCH STAGE>
+//          ________________________________________________________
+// IF_OF = |    program counter <32>     |     instruction <32>     | 
+//          ````````````````````````````````````````````````````````
+    // OPERAND FETCH STAGE
+    reg[31:0] immx, branch;
+    reg[31:0] temp1, temp2;
+    always @(posedge clk) begin
+        if(!reset) begin
+            // CONTROL UNIT 
+            isImm <= IF_OF[26];                        // Set the IsImmediate signal
+
+            if(IF_OF[31:27] == 5'b01111) begin
+                isSt <= 1;                             // Set for Store Instruction
+            end else isSt <= 0;
+
+            if(IF_OF[31:27] == 5'b01110) begin
+                isLd <= 1;                             // Set for load instruction
+            end else isLd <= 0;
+
+            if(IF_OF[31:27] == 5'b10100) begin
+                isRet <= 1;                            // Set for Return Instruction
+            end else isRet <= 0;
+
+            if(IF_OF[31:27] == 5'b10000) begin
+                isBeq <= 1;                            // Set for branch is equal Instruction
+            end else isBeq <= 0;
+
+            if(IF_OF[31:27] == 5'b10001) begin
+                isBgt <= 1;                            // Set for branch is greater than Instruction
+            end else isBgt <= 0;
+
+            if(IF_OF[31:27] == 5'b10010) begin
+                isUbranch <= 1;                        // Set for Unconditional branch Instruction
+            end else isUbranch <= 0;
+
+
+            if(
+            IF_OF[31:27] == 5'b00000 | IF_OF[31:27] == 5'b00001 |      // add and sub
+            IF_OF[31:27] == 5'b00010 | IF_OF[31:27] == 5'b00011 |      // mul and div
+            IF_OF[31:27] == 5'b00110 | IF_OF[31:27] == 5'b10011 |      // And and call(write return address) 
+            IF_OF[31:27] == 5'b00111 | IF_OF[31:27] == 5'b01000 |      // Or  and not
+            IF_OF[31:27] == 5'b01001 | IF_OF[31:27] == 5'b01010 |      // mov and lsl
+            IF_OF[31:27] == 5'b01011 | IF_OF[31:27] == 5'b01100 |      // lsr and asr
+            IF_OF[31:27] == 5'b01110 | IF_OF[31:27] == 5'b00100) begin // load and mod
+
+                isWb <= 1; // Set for all the instruction that writes to registers
+            end else isWb <= 0;
+
+
+            if(IF_OF[31:27] == 5'b10011) begin
+                isCall <= 1; // Set for call instruction
+            end else isCall <= 0;
+            // <CONTROL UNIT> 
+
+
+            immx[17:0] <= IF_OF[17:0];
+            immx[31:18] <= {IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],
+                            IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17],IF_OF[17]};
+
+            branch[26:0] <= IF_OF[26:0];
+            branch[31:27] <= 5'b00000;
+            // extending the sign of the immediate
+            temp1 <= IF_OF[31:0];  // copying INSTRUCTION from IF_OF to TEMP1
+            temp2 <= IF_OF[63:32]; // copying the PROGRAM COUNTER from IF_OF to TEMP2
+        end
+    end
+
+    always @(negedge clk) begin
+        if(!reset) begin
+    // UPDATING THE OF_EX REGISTER ON THE NEGEDGE OF THE CLOCK
+        OF_EX[8:0]     <= {isLd, isSt, isRet, isBeq, isBgt, isUbranch, isImm, isCall, isWb};
+        OF_EX[72:41]   <= (isSt == 1)  ? r[temp1[25:22]] : r[temp1[17:14]]; // value of OP2 according to isStore signal 
+        OF_EX[104:73]  <= (isRet == 1) ? r[15] : r[temp1[21:18]];           // value of OP1 according to isRet signal
+        OF_EX[136:105] <= (isImm == 1) ? immx : ((isSt == 1) ? r[temp1[25:22]] : r[temp1[17:14]]); 
+        // loading the Sign Extended Immediate into the Instruction Packet
+        OF_EX[168:137] <= branch;
+        OF_EX[40:9]    <= temp1;
+        OF_EX[200:169] <= temp2;
+        end
+    end
+    // <OPERAND FETCH>
+
+    //          ______________________________________________________________________________________________________________________________________________________________________________
+    // OF_EX = |         pc<32>        |      branch target<32>     |          B<32>          |          A<32>          |        op2 <32>         |      instruction <32>       |  control<9> |
+    //         ````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+    //         ______________________________________________________________________________________________________________________________________________________________________________
+    //        |200                 169|168                      137|136                   105|104                    73|72                     41|40                          9|8           0|
+    //        ```````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+
+    // EXECUTE UNIT
+    
+    reg[31:0] aluresult;
+    reg[104:0] temp3;
+
+    always @(posedge clk) begin
+        if(!reset) begin
+
+            // ARITHMETIC LOGICAL UNIT
+            if(OF_EX[40:36] == 5'b00000 | OF_EX[40:36] == 5'b01110 | OF_EX[40:36] == 5'b01111 ) begin
+                aluresult <= OF_EX[136:105] + OF_EX[104:73];                               // addition, load and store
+            end
+            else if(OF_EX[40:36] == 5'b00001) aluresult <= OF_EX[104:73] - OF_EX[136:105]; // subtraction
+            else if(OF_EX[40:36] == 5'b00010) aluresult <= OF_EX[136:105] * OF_EX[104:73]; // multiplication
+            else if(OF_EX[40:36] == 5'b00011) aluresult <= OF_EX[104:73] / OF_EX[136:105]; // division
+            else if(OF_EX[40:36] == 5'b00100) aluresult <= OF_EX[104:73] % OF_EX[136:105]; // modulus
+
+            else if(OF_EX[40:36] == 5'b00101) begin 
+            // COMPARE INSTRUCTION
+            // WILL SET THE FLAGS
+                aluresult <= OF_EX[104:73] - OF_EX[136:105];
+                if(aluresult == 0) begin
+                    flag_E <= 1;
+                end else flag_E <= 0;
+                if(aluresult[31] == 0) begin
+                    flag_GT <= 1;
+                end else flag_GT <= 0;
+            end
+
+            else if(OF_EX[40:36] == 5'b00110) aluresult <=  OF_EX[136:105] & OF_EX[104:73];  // and instruction
+            else if(OF_EX[40:36] == 5'b00111) aluresult <=  OF_EX[136:105] | OF_EX[104:73];  // or instruction
+            else if(OF_EX[40:36] == 5'b01000) aluresult <= ~OF_EX[136:105];                  // not instruction
+            else if(OF_EX[40:36] == 5'b01001) aluresult <=  OF_EX[136:105];                  // move instruction
+            else if(OF_EX[40:36] == 5'b01010) aluresult <=  OF_EX[104:73] << OF_EX[136:105]; // logical shift left
+            else if(OF_EX[40:36] == 5'b01011) aluresult <=  OF_EX[104:73] >> OF_EX[136:105]; // logical shift right
+            else if(OF_EX[40:36] == 5'b01100) aluresult <=  OF_EX[104:73] >>> OF_EX[136:105];// arithmetic shift right
+
+            // <ARITHMETIC LOGICAL UNIT>
+            temp3[8:0]    <= OF_EX[8:0];
+            temp3[40:9]   <= OF_EX[40:9];
+            temp3[72:41]  <= OF_EX[72:41];
+            temp3[104:73] <= OF_EX[200:169];
+
+            // CALCULATING THE BRANCH TARGET
+            branchtarget <= (OF_EX[6] == 1) ? OF_EX[104:73] : OF_EX[168:137];
+        end
+
+    end
+    always @(negedge clk) begin
+        if(!reset) begin
+        EX_MA[8:0] <= temp3[8:0]; // control
+        EX_MA[40:9] <= temp3[40:9]; // instruction
+        EX_MA[72:41] <= temp3[72:41]; // op2
+        EX_MA[104:73] <= aluresult; // aluresult
+        EX_MA[136:105] <= temp3[104:73]; // pc
+        end
+    end
+    // <EXECUTE UNIT>
+
+    //          ____________________________________________________________________________________________________________________________
+    // EX_MA = |         pc<32>        |       aluresult <32>         |        op2 <32>         |      instruction <32>       |  control<9> |
+    //         ``````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+    //         ____________________________________________________________________________________________________________________________
+    //        |136                 105|104                         73|72                     41|40                          9|8           0|
+    //        ``````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+
+
+    // MEMORY ACCESS UNIT
+    
+    
+    reg[159:0] latch;
+    always @(posedge clk) begin
+
+        // first we latch the results from the previous register
+
+        if(!reset) begin
+            latch[8:0] <= EX_MA[8:0];        // Control signals from the previous stage
+            latch[40:9] <= EX_MA[40:9];      // The intruction
+            latch[72:41] <= EX_MA[104:73];   // Aluresult
+            latch[104:73] <= EX_MA[136:105]; // Program Counter
+
+
+            // ACCESS THE RAM TO WRITE TO THE REGISTERS
+
+            if(EX_MA[8]) begin // Load instruction
+                addr3 <= EX_MA[104:73];
+                write <= 0;
+
+            end else if(EX_MA[7]) begin
+            // We first put the address of the destination register in Mar Register
+            // As the Write port of the Ram is triggered by the `Write Signal
+            // Therefore the address must be present in the Mar register before Write gets triggered
+
+                addr2 <= EX_MA[104:73]; 
+                data = EX_MA[72:41]; 
+
+// Blocking Assignment So as to trigger the Write Signal 
+// only after correct data is present in MAR, MDR
+
+                write <= 1; // turn on the `Write Signal`
+
+            end else begin
+                write <= 0;
+                addr2 <= 0;
+
+                data <= 0;
+                addr2 <= 0;
+
+            end
+        end
+    end
+    
+    always @(negedge clk) begin
+        if(!reset) begin
+    // REGISTER UPDATE
+        write <= 0;
+        MA_RW[8:0] <= latch[8:0];        // control Signals
+        MA_RW[40:9] <= latch[40:9];      // instruction
+        MA_RW[72:41] <= latch[72:41];    // Aluresult
+
+        MA_RW[104:73] <= buffer;         // LdResult
+
+    // for the load instruction, we access the memory, by updating the read address
+    // Once the read address is updated, Ram puts the data into the buffer register
+    // This values is accessed at the negedge, when we update the Pipeline registers.
+
+        MA_RW[136:105] <= latch[104:73]; // Program Counter
+        end
+    end 
+    // <MEMORY ACCESS UNIT>
+
+
+
+    //          _____________________________________________________________________________________________________________________________
+    // MA_RW = |         pc<32>        |       ldresult <32>         |        aluresult <32>     |      instruction <32>       |  control<9> |
+    //         ```````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+    //         _____________________________________________________________________________________________________________________________
+    //        |136                 105|104                        73|72                       41|40                          9|8           0|
+    //        ```````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+
+    // REGISTER WRITEBACK UNIT
+    reg[3:0] update_address; //2^4 = 16
+    reg[31:0] update_data;
+    reg isWb_;
+    always @(posedge clk) begin
+        if(!reset) begin
+            isWb_ <= MA_RW[0];
+            if(MA_RW[0] == 1'b1) begin // EX_MA[0] == isWb
+                // EX_MA[1] == isCall 
+                update_address <= (MA_RW[1] == 1) ? 15 : MA_RW[34:31]; // 15 or rd
+
+            end
+
+            if(MA_RW[1] == 1'b1) begin // isCall ?
+                update_data <= MA_RW[136:105];
+
+            end else begin
+                if(MA_RW[8] == 1'b1) begin
+                    update_data <= MA_RW[104:73];
+                end else begin
+                    update_data <= MA_RW[72:41];
+                end
+            end
+
+        end
+    end
+    always @(negedge clk) begin
+        if(!reset) begin
+            if(isWb_ == 1'b1) begin
+                r[update_address] <= update_data;
+            end
+        end
+    end
+    // <REGISTER WRITEBACK UNIT>
+
+endmodule
+
+module Ram( 
+        input [31:0] addr,     // Read Address 1 
+        input [31:0] addr2,    // Write Address1
+        input [31:0] addr3,    // Read Address 2
+        input write,           // Write
+        input [31:0] data,     // DATA to be written
+        output reg[31:0] out,  // output buffer 1
+        output reg[31:0] out2);// output buffer 2
+
+    reg[31:0] Mem[0:32767]; // 128 Kb Memory
+
+    always @(addr, Mem[addr]) begin
+        out <= Mem[addr];
+    end
+    always @(addr3, Mem[addr3]) begin
+        out2 <= Mem[addr3];
+    end
+
+    always @(posedge write) begin
+        if(write) begin
+            Mem[addr2] <= data;
+        end
+    end
+endmodule

@@ -11,7 +11,7 @@ FEATURES -
 3.) 128 KB RAM (2 read ports, 1 write port), SUPPORTS STACK
 4.) STATE UPDATE ON (NEGEDGE OF CLK)
 5.) NEXT STATE COMPUTATION ON (POSEDGE OF THE CLK)
-6.) DATA FORWARDIN PATHS
+
 
 THE REFERENCE FOR THE ISA AND THE PIPELINE OPERATION IN THE GIVEN CODE
 HAS BEEN TAKEN FROM THE BOOK - (Basic Computer Architecture Version 2.1 by Professor Smruti R. Sarangi)
@@ -108,7 +108,8 @@ module Processor(input clk, input reset);
 //     
     // instruction = {31 opcode 27|26 Imm|25 rd 22|21 rs1 18|17 rs2 14|    }
     // instruction = {31 opcode 27|26 Imm|25 rd 22|21 rs1 18|17 Immediate 0}
-    // instruction = {31 opcode 27|26           Immediate(offset)         0}     
+    // instruction = {31 opcode 27|26           Immediate(offset)         0}
+
     // OPERAND FETCH STAGE
     reg[31:0] immx, branch;
     reg[31:0] temp1, temp2;
@@ -194,7 +195,7 @@ module Processor(input clk, input reset);
 
                     if(IF_OF[31:27] == add | IF_OF[31:27] == sub  | IF_OF[31:27] == mul | IF_OF[31:27] == div | IF_OF[31:27] == mod |
                        IF_OF[31:27] == cmp | IF_OF[31:27] == and_ | IF_OF[31:27] == or_ | IF_OF[31:27] == lsl | IF_OF[31:27] == lsr |
-                       IF_OF[31:27] == asr ) begin
+                       IF_OF[31:27] == asr) begin
                             forA <= 1;
                             A <= MA_RW[72:41]; // A = aluresult
                        end else begin
@@ -234,7 +235,7 @@ module Processor(input clk, input reset);
 
                     if(IF_OF[31:27] == add | IF_OF[31:27] == sub  | IF_OF[31:27] == mul | IF_OF[31:27] == div | IF_OF[31:27] == mod |
                        IF_OF[31:27] == cmp | IF_OF[31:27] == and_ | IF_OF[31:27] == or_ | IF_OF[31:27] == lsl | IF_OF[31:27] == lsr |
-                       IF_OF[31:27] == asr ) begin
+                       IF_OF[31:27] == asr | IF_OF[31:27] == mov) begin
                             B <= MA_RW[72:41]; // B = aluresult
                             forB <= 1;
                        end else begin
@@ -242,9 +243,9 @@ module Processor(input clk, input reset);
                        end          
                 end else begin
                     if(MA_RW[40:36] == ld) begin
-                        if(IF_OF[31:27] == add | IF_OF[31:27] == sub  | IF_OF[31:27] == mul | IF_OF[31:27] == div | IF_OF[31:27] == mod |
+                        if(IF_OF[31:27] == add  | IF_OF[31:27] == sub  | IF_OF[31:27] == mul | IF_OF[31:27] == div | IF_OF[31:27] == mod |
                             IF_OF[31:27] == cmp | IF_OF[31:27] == and_ | IF_OF[31:27] == or_ | IF_OF[31:27] == lsl | IF_OF[31:27] == lsr |
-                            IF_OF[31:27] == asr ) begin
+                            IF_OF[31:27] == asr | IF_OF[31:27] == mov) begin
                                 B <= MA_RW[104:73]; // B = ldresult
                                 forB <= 1;
                             end else begin
@@ -329,7 +330,7 @@ module Processor(input clk, input reset);
                     end             
                 end else begin
                     if(MA_RW[40:36] == ld) begin
-                        if(OF_EX[40:36] == add | OF_EX[40:36] == sub  | OF_EX[40:36] == mul | OF_EX[40:36] == div | OF_EX[40:36] == mod |
+                        if(OF_EX[40:36] == add  | OF_EX[40:36] == sub  | OF_EX[40:36] == mul | OF_EX[40:36] == div | OF_EX[40:36] == mod |
                             OF_EX[40:36] == cmp | OF_EX[40:36] == and_ | OF_EX[40:36] == or_ | OF_EX[40:36] == lsl | OF_EX[40:36] == lsr |
                             OF_EX[40:36] == asr ) begin
                                 OF_EX[104:73] = MA_RW[104:73]; // A = ldresult
@@ -354,15 +355,15 @@ module Processor(input clk, input reset);
 
                     if(OF_EX[40:36] == add | OF_EX[40:36] == sub  | OF_EX[40:36] == mul | OF_EX[40:36] == div | OF_EX[40:36] == mod |
                        OF_EX[40:36] == cmp | OF_EX[40:36] == and_ | OF_EX[40:36] == or_ | OF_EX[40:36] == lsl | OF_EX[40:36] == lsr |
-                       OF_EX[40:36] == asr ) begin
+                       OF_EX[40:36] == asr | OF_EX[40:36] == mov) begin
 
                             OF_EX[136:105] = MA_RW[72:41]; // B = aluresult
                     end             
                 end else begin
                     if(MA_RW[40:36] == ld) begin
-                        if(OF_EX[40:36] == add | OF_EX[40:36] == sub  | OF_EX[40:36] == mul | OF_EX[40:36] == div | OF_EX[40:36] == mod |
+                        if(OF_EX[40:36] == add  | OF_EX[40:36] == sub  | OF_EX[40:36] == mul | OF_EX[40:36] == div | OF_EX[40:36] == mod |
                             OF_EX[40:36] == cmp | OF_EX[40:36] == and_ | OF_EX[40:36] == or_ | OF_EX[40:36] == lsl | OF_EX[40:36] == lsr |
-                            OF_EX[40:36] == asr ) begin
+                            OF_EX[40:36] == asr | OF_EX[40:36] == mov) begin
                                 OF_EX[136:105] = MA_RW[104:73]; // B = ldresult
                         end     
                     end

@@ -20,24 +20,13 @@ initial begin
 
     // LOADING THE INSTRUCTIONS
     // program to compute the factorial of a number stored in r0
-    P1.Instruction_MEM[0] <= 32'h4C00000A; // mov r0, 10
+    P1.Instruction_MEM[0] <= 32'h4C00000C; // mov r0, 10
     P1.Instruction_MEM[1] <= 32'h4C400001; // mov r1, 1
-    P1.Instruction_MEM[2] <= 32'h68000000; // no op
-    P1.Instruction_MEM[3] <= 32'h68000000; // no op
     P1.Instruction_MEM[4] <= 32'h48800000; // mov r2, r0 
     // .loop
-    P1.Instruction_MEM[5] <= 32'h68000000; // no op
-    P1.Instruction_MEM[6] <= 32'h68000000; // no op
-    P1.Instruction_MEM[7] <= 32'h68000000; // no op 
     P1.Instruction_MEM[8] <= 32'h10448000; //         mul r1, r1, r2
     P1.Instruction_MEM[9] <= 32'h0C880001; //         sub r2, r2, 1
-    P1.Instruction_MEM[10] <= 32'h68000000; // no op
-    P1.Instruction_MEM[11] <= 32'h68000000; // no op
-    P1.Instruction_MEM[12] <= 32'h68000000; // no op
     P1.Instruction_MEM[13] <= 32'h2C080001; //         cmp r2, 1
-    P1.Instruction_MEM[14] <= 32'h68000000; // no op
-    P1.Instruction_MEM[15] <= 32'h68000000; // no op
-    P1.Instruction_MEM[16] <= 32'h68000000; // no op
     P1.Instruction_MEM[17] <= 32'h88000005; //         bgt.loop
     P1.Instruction_MEM[18] <= 32'h68000000; // no op
     P1.Instruction_MEM[19] <= 32'h68000000; // no op

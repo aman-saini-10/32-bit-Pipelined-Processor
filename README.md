@@ -1,5 +1,5 @@
 # 32-bit-Pipelined-Processor
-Implemented a 32-bit RISC 5-stage Instruction Pipeline in Verilog, 
+Model of a 32-bit RISC 5-stage Instruction Pipeline in Verilog, 
 <br />
 <br /> The reference for the ISA and the Pipeline Operation
 <br /> has been taken from the book - (Basic Computer Architecture Version 2.1 by Professor Smruti R. Sarangi)

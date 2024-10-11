@@ -72,7 +72,7 @@ b.exit
     ret  =  5'b10100;  // Return (load return address to program counter)
 
     // <INSTRUCTION MANUAL>================================================================================
-
+*/
     P1.Instruction_MEM[0]  <= 32'h4c800002;   // mov r2, 2
     P1.Instruction_MEM[1]  <= 32'h20c48000;   // .loop: mod r3, r1, r2
     P1.Instruction_MEM[2]  <= 32'h2c0c0000;   //        cmp r3, 0
